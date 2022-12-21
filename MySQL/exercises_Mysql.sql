@@ -299,7 +299,7 @@ SELECT first_name,last_name,job_title,salary FROM soft_uni_employees ORDER BY sa
 UPDATE soft_uni_employees SET salary=salary*1.1;
 SELECT salary FROM soft_uni_employees;
 
---MySQL-Basic-CRUD-Exercises
+--CRUD
 
 SHOW TABLES FROM soft_uni;
 --1
@@ -361,7 +361,6 @@ FROM employees;
 SELECT * FROM v_employees_salaries;
 --16
 CREATE VIEW v_employees_job_titles AS
---SELECT CONCAT_WS(" ", first_name, IF(middle_name = NULL , "", middle_name), last_name) AS "full_name", job_title FROM employees;
 SELECT CONCAT_WS(" ", first_name, middle_name, last_name) AS "full_name", job_title
 FROM employees;
 --17
@@ -485,3 +484,471 @@ FROM games;
 --16
 SELECT product_name,order_date, DATE_ADD(order_date,INTERVAL 3 DAY) AS pay_due,DATE_ADD(order_date,INTERVAL 1 MONTH) AS deliver_due
 FROM orders;
+
+--Exercises: Data Aggregation
+
+--1
+SELECT COUNT(id) 
+AS "count"
+FROM wizzard_deposits;
+--2
+SELECT MAX(magic_wand_size) 
+AS "longest_magic_wand"
+FROM wizzard_deposits;
+--3
+SELECT deposit_group, MAX(magic_wand_size) AS 'longest_magic_wand'
+FROM wizzard_deposits
+GROUP BY deposit_group
+ORDER BY longest_magic_wand ASC, deposit_group;
+--4 - why only avg but no min
+SELECT deposit_group
+FROM wizzard_deposits
+GROUP BY deposit_group
+ORDER BY avg(magic_wand_size)
+LIMIT 1;
+--5
+SELECT deposit_group,
+SUM (deposit_amount) AS 'total_sum'
+FROM wizzard_deposits
+GROUP BY deposit_group
+ORDER BY total_sum ASC;
+--6
+SELECT deposit_group,
+SUM (deposit_amount) AS 'total_sum'
+FROM wizzard_deposits
+WHERE magic_wand_creator='Ollivander family'
+GROUP BY deposit_group
+ORDER BY deposit_group;
+--7
+SELECT deposit_group,
+SUM (deposit_amount) AS 'total_sum'
+FROM wizzard_deposits
+WHERE magic_wand_creator='Ollivander family'
+GROUP BY deposit_group
+HAVING SUM(deposit_amount)<150000
+ORDER BY total_sum DESC;
+--8
+SELECT deposit_group,magic_wand_creator, MIN(deposit_charge) AS 'min_deposit_charge'
+FROM wizzard_deposits
+GROUP BY deposit_group,magic_wand_creator
+ORDER BY magic_wand_creator,deposit_group;
+--9
+SELECT 
+IF(age>=0 AND age<=10,'[0-10]',
+IF(age>=11 AND age<=20,'[11-20]',
+IF(age>=21 AND age<=30,'[21-30]',
+IF(age>=31 AND age<=40,'[31-40]',
+IF(age>=41 AND age<=50,'[41-50]',
+IF(age>=51 AND age<=60,'[51-60]',
+'[61+]')))))) AS 'age_group',
+COUNT(id) AS 'wizard_count'
+FROM wizzard_deposits
+GROUP BY age_group
+ORDER BY age_group ASC;
+--10
+SELECT LEFT(first_name,1) AS 'first_letter'
+FROM wizzard_deposits
+WHERE deposit_group='Troll Chest'
+GROUP BY first_letter
+ORDER BY first_letter;
+--11
+SELECT deposit_group, is_deposit_expired, AVG(deposit_interest) AS 'average_interest'
+FROM wizzard_deposits
+WHERE deposit_start_date>'1985-01-01'
+GROUP BY deposit_group, is_deposit_expired
+ORDER BY deposit_group DESC,is_deposit_expired;
+--12 -- USE soft_uni;
+SELECT department_id, MIN(salary) AS minimum_salary
+FROM employees
+WHERE DATE(hire_date)>'2000-01-01'
+GROUP BY department_id
+HAVING department_id=2 OR department_id=5 OR department_id=7
+ORDER BY department_id;
+--13
+CREATE TABLE avg_salary_dept AS 
+SELECT department_id, salary
+FROM employees
+WHERE salary>30000;
+DELETE 
+FROM avg_salary_dept
+WHERE manager_id=42;
+UPDATE avg_salary_dept
+SET salary=salary+5000
+WHERE department_id=1;
+SELECT department_id, AVG(salary) AS 'avg_salary' 
+FROM avg_salary_dept
+GROUP BY department_id
+ORDER BY department_id;
+--14
+SELECT department_id, MAX(salary) AS max_salary
+FROM employees
+GROUP BY department_id
+HAVING max_salary NOT BETWEEN 30000 AND 70000
+ORDER BY department_id;
+--15
+SELECT COUNT(employee_id)
+FROM employees
+WHERE manager_id;
+--16
+SELECT department_id, salary
+FROM (SELECT department_id,salary,
+DENSE_RANK() OVER (PARTITION BY department_id ORDER BY salary DESC) AS ranked_salaries 
+FROM employees 
+GROUP BY department_id,salary) AS ranked_salaries_deptid
+WHERE ranked_salaries=3
+GROUP BY department_id,salary;
+--17
+SELECT first_name, last_name, department_id
+FROM employees AS orig
+WHERE salary > (
+    SELECT AVG(salary)
+    FROM employees AS copy
+    WHERE orig.department_id = copy.department_id)
+ORDER BY department_id, employee_id
+LIMIT 10;
+--18
+SELECT department_id, SUM(salary) AS total_salary
+FROM employees
+GROUP BY department_id
+ORDER BY department_id;
+
+--Table Relations
+
+--1
+USE geography;
+CREATE TABLE passports (
+    passports_id INT UNIQUE NOT NULL,
+    passport_number VARCHAR(20) UNIQUE NOT NULL,
+    PRIMARY KEY(passports_id)
+    );
+CREATE TABLE people (
+    person_id INT AUTO_INCREMENT NOT NULL,
+    first_name VARCHAR(200),
+    salary DECIMAL(8,2),
+    passport_id INT UNIQUE,
+    PRIMARY KEY (person_id),
+    FOREIGN KEY (passport_id) REFERENCES passports(passports_id)
+);
+INSERT INTO passports(passports_id,passport_number)
+VALUES 
+(101,'N34FG21B'),
+(102,'K65LO4R7'),
+(103,'ZE657QP2');
+INSERT INTO people(first_name,salary,passport_id)
+VALUES 
+("Roberto",43300,102),
+("Tom",56100,103),
+("Yana",60200,101);
+
+--2
+CREATE TABLE manufacturers (
+    manufacturers_id INT AUTO_INCREMENT NOT NULL,
+    name VARCHAR(50) UNIQUE NOT NULL,
+    established_on DATE,
+    PRIMARY KEY(manufacturers_id)
+    );
+CREATE TABLE models (
+    model_id INT UNIQUE NOT NULL,
+    name VARCHAR(50),
+    manufacturer_id INT,
+    PRIMARY KEY (model_id),
+    FOREIGN KEY (manufacturer_id) REFERENCES manufacturers(manufacturers_id)
+);
+INSERT INTO manufacturers(name,established_on)
+VALUES 
+("BMW",'1916-03-01'),
+("Tesla",'2003-01-01'),
+("Lada",'1966-05-01');
+INSERT INTO models(model_id,name,manufacturer_id)
+VALUES 
+(101,'X1',1),
+(102,'i6',1),
+(103,'Model S',2),
+(104,'Model X',2),
+(105,'Model 3',2),
+(106,'Nova',3);
+
+--3
+CREATE TABLE students (
+    students_id INT AUTO_INCREMENT NOT NULL,
+    name VARCHAR(50) NOT NULL,
+    PRIMARY KEY(students_id)
+    );
+CREATE TABLE exams (
+    exams_id INT UNIQUE,
+    name VARCHAR(50),
+    PRIMARY KEY (exams_id)
+);
+CREATE TABLE students_exams (
+    student_id INT NOT NULL,
+    exam_id INT NOT NULL,
+    CONSTRAINT pk_students_exams PRIMARY KEY (student_id,exam_id),
+    CONSTRAINT fk_students_ids FOREIGN KEY (student_id) REFERENCES students(students_id),
+    CONSTRAINT fk_exams_ids FOREIGN KEY (exam_id) REFERENCES exams(exams_id)
+);
+INSERT INTO students(name)
+VALUES 
+('Mila'),
+('Toni'),
+('Ron');
+INSERT INTO exams(exams_id,name)
+VALUES 
+(101,'Spring MVC'),
+(102,'Neo4j'),
+(103,'Oracle 11g');
+INSERT INTO students_exams(student_id,exam_id)
+VALUES 
+(1,101),
+(1,102),
+(2,101),
+(3,103),
+(2,102),
+(2,103);
+
+--4
+CREATE TABLE teachers (
+    teacher_id INT,
+    name VARCHAR(50),
+    manager_id INT,
+    CONSTRAINT pk_teacher_id PRIMARY KEY (teacher_id)
+);
+INSERT INTO teachers (teacher_id, name, manager_id)
+VALUES
+(101, "John", NULL),
+(102, "Maya", 106),
+(103, "Silvia", 106),
+(104, "Ted", 105),
+(105, "Mark", 101),
+(106, "Greta", 101);
+ALTER TABLE teachers
+ADD CONSTRAINT fk_teachers FOREIGN KEY (manager_id) REFERENCES teachers (teacher_id);
+
+--5
+CREATE TABLE item_types (
+    item_type_id INT (11) NOT NULL,
+    name VARCHAR(50) NOT NULL,
+    CONSTRAINT pk_item_types PRIMARY KEY (item_type_id)
+);
+CREATE TABLE cities (
+    city_id INT (11),
+    name VARCHAR(50),
+    CONSTRAINT pk_cities PRIMARY KEY (city_id)
+);
+CREATE TABLE items (
+    item_id INT (11),
+    name VARCHAR(50),
+    item_type_id INT (11),
+    CONSTRAINT pk_items PRIMARY KEY (item_id),
+    CONSTRAINT fk_types FOREIGN KEY (item_type_id) REFERENCES item_types(item_type_id)
+);
+CREATE TABLE customers (
+    customer_id INT (11),
+    name VARCHAR(50),
+    birthday DATE,
+    city_id INT (11),
+    CONSTRAINT pk_customers PRIMARY KEY (customer_id),
+    CONSTRAINT fk_city_id FOREIGN KEY (city_id) REFERENCES cities(city_id)
+);
+CREATE TABLE orders (
+    order_id INT (11),
+    customer_id INT (11),
+    CONSTRAINT pk_orders PRIMARY KEY (order_id),
+    CONSTRAINT fk_customer_id FOREIGN KEY (customer_id) REFERENCES customers(customer_id)
+);
+CREATE TABLE order_items (
+    order_id INT (11),
+    item_id INT (11),
+    CONSTRAINT pk_order_items PRIMARY KEY (order_id, item_id),
+    CONSTRAINT fk_order_ids FOREIGN KEY (order_id) REFERENCES orders (order_id),
+    CONSTRAINT fk_items FOREIGN KEY (item_id) REFERENCES items (item_id)
+);
+--6
+CREATE TABLE majors (
+    major_id INT (11) NOT NULL,
+    name VARCHAR(50) NOT NULL,
+    CONSTRAINT pk_major PRIMARY KEY (major_id)
+);
+CREATE TABLE students (
+    student_id INT (11) NOT NULL,
+    student_number VARCHAR(12) NOT NULL,
+    student_name VARCHAR(50) NOT NULL,
+    major_id INT(11),
+    CONSTRAINT pk_students_id PRIMARY KEY (student_id),
+    CONSTRAINT fk_major_id FOREIGN KEY (major_id) REFERENCES majors(major_id)
+);
+CREATE TABLE payments (
+    payment_id INT (11) NOT NULL,
+    payment_date DATE,
+    payment_amount DECIMAL (8,2),
+    student_id INT (11),
+    CONSTRAINT pk_payments PRIMARY KEY (payment_id),
+    CONSTRAINT fk_students_id FOREIGN KEY (student_id) REFERENCES students(student_id)
+);
+CREATE TABLE subjects (
+    subject_id INT (11) NOT NULL,
+    subject_name VARCHAR (50),
+    CONSTRAINT pk_subjects_id PRIMARY KEY (subject_id)
+);
+CREATE TABLE agenda (
+    student_id INT (11),
+    subject_id INT (11),
+    CONSTRAINT pk_agenda PRIMARY KEY (student_id, subject_id),
+    CONSTRAINT fk_agenda_student_id FOREIGN KEY (student_id) REFERENCES students (student_id),
+    CONSTRAINT fk_agenda_subject_id FOREIGN KEY (subject_id) REFERENCES subjects (subject_id)
+);
+--9
+SELECT mountains.mountain_range,peaks.peak_name,peaks.elevation 
+FROM peaks
+INNER JOIN mountains ON peaks.mountain_id=mountains.id
+WHERE mountain_range='Rila'
+ORDER BY elevation DESC;
+
+--Subqueries and JOINs
+
+--1
+SELECT e.employee_id,e.job_title,e.address_id,a.address_text
+FROM employees
+INNER JOIN addresses ON e.address_id=a.address_id
+ORDER BY address_id
+LIMIT 5;
+--2
+SELECT employees.first_name, employees.last_name, towns.name,addresses.address_text
+FROM addresses
+JOIN towns ON addresses.town_id=towns.town_id
+JOIN employees ON addresses.address_id=employees.address_id
+ORDER BY first_name,last_name
+LIMIT 5;
+--3
+SELECT employees.employee_id,employees.first_name, employees.last_name, departments.name
+FROM employees
+JOIN departments ON employees.department_id_id=departments.department_id
+WHERE name='Sales'
+ORDER BY employee_id DESC;
+--4
+SELECT employees.employee_id,employees.first_name, employees.salary, departments.name
+FROM employees
+JOIN departments ON employees.department_id=departments.department_id
+WHERE salary>15000
+ORDER BY employees.department_id DESC
+LIMIT 5;
+--5
+SELECT e.employee_id, e.first_name
+FROM employees AS e
+LEFT JOIN employees_projects AS ep
+ON ep.employee_id = e.employee_id
+WHERE ep.project_id IS NULL
+ORDER BY e.employee_id DESC
+LIMIT 3;
+--6
+SELECT e.first_name,e.last_name,e.hire_date,d.name
+FROM employees AS e
+LEFT JOIN departments AS d
+ON d.department_id = e.department_id
+WHERE (e.hire_date>'1999-01-01') AND (d.name='Sales' OR d.name='Finance')
+ORDER BY e.hire_date;
+--7
+SELECT e.employee_id, e.first_name,p.name AS 'project_name'
+FROM employees AS e
+JOIN employees_projects AS ep
+ON ep.employee_id=e.employee_id
+JOIN projects AS p
+ON ep.project_id=p.project_id
+WHERE DATE(p.start_date) > '2002-08-13' AND p.end_date IS NULL
+ORDER BY e.first_name,p.name
+LIMIT 5;
+--8
+SELECT e.employee_id, e.first_name, 
+IF(p.start_date>='2005-01-01','NULL',p.name) AS 'project_name'
+FROM employees AS e
+JOIN employees_projects AS ep
+ON ep.employee_id=e.employee_id
+JOIN projects AS p
+ON ep.project_id=p.project_id
+WHERE e.employee_id=24
+ORDER BY project_name;
+--9
+SELECT e.employee_id, e.first_name,e.manager_id,em.first_name AS 'manager_name'
+FROM employees AS e
+JOIN employees AS em
+ON e.manager_id=em.employee_id
+WHERE e.manager_id=3 OR e.manager_id=7
+ORDER BY e.first_name;
+--10
+SELECT e.employee_id, CONCAT (e.first_name," ",e.last_name) AS 'employee_name', CONCAT (em.first_name," ",em.last_name) AS 'manager_name', d.name AS 'department_name'
+FROM employees AS e
+JOIN employees AS em
+ON e.manager_id=em.employee_id
+JOIN departments AS d
+ON e.department_id=d.department_id
+ORDER BY e.employee_id
+LIMIT 5;
+--11
+SELECT AVG(salary) AS min_avg_salary
+FROM employees
+GROUP BY department_id
+ORDER BY min_avg_salary
+LIMIT 1;
+--12
+SELECT mc.country_code, m.mountain_range, p.peak_name, p.elevation
+FROM mountains_countries AS mc
+JOIN mountains AS m
+ON mc.mountain_id=m.id
+JOIN peaks AS p
+ON mc.mountain_id=p.mountain_id
+WHERE (mc.country_code='BG') AND (p.elevation>2835)
+ORDER BY p.elevation DESC;
+--13
+SELECT country_code, COUNT (mountain_id) AS 'mountain_range'
+FROM mountains_countries
+GROUP BY country_code
+HAVING country_code='BG' OR country_code='RU' OR country_code='US'
+ORDER BY mountain_range DESC;
+--14
+SELECT c.country_name, r.river_name
+FROM countries AS c
+LEFT JOIN countries_rivers AS cr
+ON cr.country_code=c.country_code
+LEFT JOIN rivers AS r
+ON cr.river_id=r.id
+WHERE c.continent_code='AF'
+ORDER BY c.country_name
+LIMIT 5;
+--15**
+SELECT c2.continent_code,c2.currency_code, c2.currency_usage
+FROM (
+    SELECT c1.continent_code,c1.currency_code,c1.currency_usage,
+    DENSE_RANK() OVER (PARTITION BY c1.continent_code ORDER BY c1.currency_usage DESC) AS 'ranked'
+    FROM(
+        SELECT continent_code,currency_code, COUNT(currency_code) AS currency_usage
+        FROM countries
+        GROUP BY currency_code,continent_code
+        HAVING COUNT(currency_code)>1
+    ) AS c1
+) AS c2
+WHERE ranked=1
+ORDER BY c2.continent_code, c2.currency_code;
+--16
+SELECT COUNT(c1.country_code) AS 'country_count'
+FROM
+    (SELECT c.country_code, mc.mountain_id
+    FROM countries AS c
+    LEFT JOIN mountains_countries AS mc
+    ON c.country_code=mc.country_code
+    WHERE mc.mountain_id IS NULL) 
+    AS c1;
+--17
+SELECT c.country_name, 
+MAX (p.elevation) AS 'highest_peak_elevation', 
+MAX(r.length) AS 'longest_river_length'
+FROM countries AS c
+LEFT JOIN mountains_countries AS mc
+ON c.country_code=mc.country_code
+LEFT JOIN peaks AS p
+ON mc.mountain_id=p.mountain_id
+LEFT JOIN countries_rivers AS cr
+ON cr.country_code=c.country_code
+LEFT JOIN rivers AS r
+ON cr.river_id=r.id
+GROUP BY c.country_name
+ORDER BY highest_peak_elevation DESC, longest_river_length DESC,c.country_name
+LIMIT 5;
